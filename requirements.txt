@@ -1,0 +1,10 @@
+streamlit
+pypdf
+langchain-community
+langchain-openai
+langchain-core
+langchain 
+langchain-text-splitters 
+langchain-community
+
+
