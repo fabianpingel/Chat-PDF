@@ -12,11 +12,38 @@ from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain.messages import AIMessageChunk
 
+from openai import OpenAI, AuthenticationError, APIConnectionError, RateLimitError
+
 
 SYSTEM_PROMPT = (
         "You have access to a tool that retrieves contextual information from a PDF document. "
         "Use the tool to help answer user queries."
     )
+
+# ----------------------
+# --- API Key prüfen ---
+# ----------------------
+
+def check_api_key(api_key: str) -> bool:
+    try:
+        client = OpenAI(api_key=api_key)
+        client.responses.create(
+            model="gpt-4.1-mini",
+            input="ping"
+        )
+        return True
+
+    # except AuthenticationError:
+    #     # API-Key ist ungültig
+    #     return False
+
+    # except (APIConnectionError, RateLimitError):
+    #     # Key evtl. gültig, aber temporäres Problem
+    #     raise RuntimeError("API momentan nicht erreichbar")
+    except Exception:
+        return False        
+
+
 
 
 # --------------------
@@ -34,6 +61,9 @@ text_splitter = RecursiveCharacterTextSplitter(
 # Session State Init (WICHTIG: alles IMMER initialisieren)
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
+if "api_key_valid" not in st.session_state:
+    st.session_state.api_key_valid = False
 
 
 # ------------------------
@@ -97,15 +127,35 @@ with st.sidebar:
     api_key = st.text_input(
         "OpenAI API-Key",
         type="password",
-        placeholder="sk-..."
+        placeholder="sk-...",
+        help="Den API-Key bekommt man mit einem OpenAI Account unter https://platform.openai.com/account/api-keys",
     )
 
     if not api_key:
         st.warning("Bitte OpenAI API-Key eingeben.")
         st.stop()
 
-    if api_key:
-        st.success("✔️ API-Key gesetzt")
+    if st.button("API-Key prüfen"):
+        with st.spinner("Prüfe API-Key…"):
+            try:
+                if check_api_key(api_key):
+                    st.success("✅ API-Key ist gültig")
+                    st.session_state.api_key_valid = True
+                else:
+                    st.error("❌ Ungültiger API-Key")
+                    st.stop()
+
+            except AuthenticationError:
+                st.error("❌ Ungültiger API-Key")
+
+            except (APIConnectionError, RateLimitError):
+                st.warning("⚠️ OpenAI API momentan nicht erreichbar")
+
+            except Exception as e:
+                st.error(f"Unerwarteter Fehler: {e}")
+
+    if st.session_state.api_key_valid:
+        #st.success("✔️ API-Key gesetzt")
         
         os.environ["OPENAI_API_KEY"] = api_key
         
@@ -133,19 +183,19 @@ with st.sidebar:
             checkpointer=InMemorySaver()
         )
 
-    # PDF Upload
-    uploaded_pdf = st.file_uploader("PDF hochladen", type="pdf")
+        # PDF Upload
+        uploaded_pdf = st.file_uploader("PDF hochladen", type="pdf")
 
-    if uploaded_pdf and "pdf_indexed" not in st.session_state:
-        with st.spinner("PDF wird verarbeitet..."):
-            docs = load_pdf(uploaded_pdf)
-            splits = text_splitter.split_documents(docs)
-            vector_store.add_documents(splits)
-            st.session_state.pdf_indexed = True
-            st.success("PDF erfolgreich indexiert!")
-    
-    if not uploaded_pdf:
-        st.warning('Bitte PDF hochladen')
+        if uploaded_pdf and "pdf_indexed" not in st.session_state:
+            with st.spinner("PDF wird verarbeitet..."):
+                docs = load_pdf(uploaded_pdf)
+                splits = text_splitter.split_documents(docs)
+                vector_store.add_documents(splits)
+                st.session_state.pdf_indexed = True
+                st.success("PDF erfolgreich indexiert!")
+        
+        if not uploaded_pdf:
+            st.warning('Bitte PDF hochladen')
 
 
     st.markdown(

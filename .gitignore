@@ -12,3 +12,7 @@ wheels/
 
 # Streamlit
 .streamlit/
+
+# Data
+data/
+temp/
