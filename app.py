@@ -137,9 +137,7 @@ with st.sidebar:
 # -----------------
 
 if st.session_state.pdf_indexed:
-        
-    st.write(st.session_state)
-
+ 
     # Title
     st.title("🔨 massiverCHAT")
 
